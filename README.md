@@ -1,60 +1,33 @@
-# CHESH2 — Realistic Code-Generated Digital Eye
+# RealisticEye — Procedural Digital Eye for ESP8266 + GC9A01
 
-This project implements a procedural, animated digital eye on ESP8266 + GC9A01 240x240 round TFT.
+This project renders a realistic, procedural digital eye on an ESP8266 with a GC9A01 240×240 round TFT and provides a mobile web control UI served from the ESP8266 SoftAP.
 
-WARNING: You must configure the TFT_eSPI library before compiling. See "Library Configuration" below.
+Key features
+- Procedural iris with multi-scale fibers, rings, crypt-like details, and configurable color.
+- Iris cached in RAM as RGB565 to allow complex detail without per-frame recomputation.
+- Pupil shading, layered highlights, realistic sclera with subtle vessels.
+- Parametric eyelids and smooth blink animation.
+- Gaze control with easing and micro-saccades.
+- Lightweight tears for crying expression.
+- WiFi Access Point: SSID `RealisticEye`, password `12345678`, IP `192.168.4.1`.
+- Web UI to set color, gaze, expression, pupil, and toggles.
 
-Features
-- Procedural iris generated in code (no images)
-- Dynamic pupil
-- Smooth gaze animation and micro-saccades
-- Blinking
-- Expressions framework
-- WiFi Access Point (ParaxEye / 12345678)
-- Mobile web UI for real-time control
+Required libraries
+- Arduino ESP8266 core
+- TFT_eSPI (Bodmer)
+- ESP8266WiFi (comes with core)
+- ESP8266WebServer (comes with core)
 
-Hardware
-- ESP8266 NodeMCU / ESP-12F
-- GC9A01 240x240 round TFT
-
-Wiring (use these pins exactly):
+Wiring
 - SCLK -> D5 (GPIO14)
 - MOSI -> D7 (GPIO13)
 - MISO -> D6 (GPIO12)
 - CS   -> D8 (GPIO15)
 - DC   -> D3 (GPIO0)
 - RST  -> D4 (GPIO2)
+- VCC  -> 3.3V
+- GND  -> GND
+- BL   -> 3.3V (or tied to 3.3V via resistor if needed)
 
-Library Configuration
-- Install Arduino core for ESP8266
-- Install TFT_eSPI library
-- Open TFT_eSPI/User_Setup_Select.h or User_Setup.h in the library and create a project-specific User_Setup.h that matches the GC9A01 wiring above.
-
-Example User_Setup additions (in the library's User_Setup.h):
-- Define GC9A01 driver and map pins:
-  #define GC9A01_DRIVER
-  #define TFT_MISO 12
-  #define TFT_MOSI 13
-  #define TFT_SCLK 14
-  #define TFT_CS   15
-  #define TFT_DC   0
-  #define TFT_RST  2
-
-Notes on performance
-- The code aims to be simple and clear. The procedural iris is sampled per-pixel which may be slow on the ESP8266 for very high animation rates.
-- If needed, performance improvements: precompute iris texture, use SPI DMA/fast block transfers, reduce redraw area, optimize math with lookup tables.
-
-Building
-- Open chesh2.ino in Arduino IDE
-- Configure board to NodeMCU 1.0 (ESP-12E Module) or equivalent
-- Ensure TFT_eSPI is configured as above
-- Upload
-
-Web UI
-- Connect to WiFi SSID: ParaxEye
-- Password: 12345678
-- Open http://192.168.4.1 in your phone
-
-License
-- MIT
-
+TFT_eSPI configuration
+- Edit TFT_eSPI/User_Setup.h as described in the repository file 'TFT_User_Setup_INSTRUCTIONS.txt'.

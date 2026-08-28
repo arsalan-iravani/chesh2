@@ -1,0 +1,20 @@
+IMPORTANT: You must edit the TFT_eSPI library configuration to match these defines.
+Open the TFT_eSPI library folder (e.g., Arduino/libraries/TFT_eSPI/) and edit User_Setup.h.
+Add or modify the following lines (remove any conflicting defines):
+
+// --- GC9A01 driver ---
+#define GC9A01_DRIVER
+
+// SPI pins for NodeMCU / ESP-12F
+#define TFT_MISO 12   // D6 -> GPIO12
+#define TFT_MOSI 13   // D7 -> GPIO13
+#define TFT_SCLK 14   // D5 -> GPIO14
+#define TFT_CS   15   // D8 -> GPIO15
+#define TFT_DC    0   // D3 -> GPIO0
+#define TFT_RST   2   // D4 -> GPIO2
+
+// display size
+#define TFT_WIDTH 240
+#define TFT_HEIGHT 240
+
+// If using internal User_Setup_Select.h method, ensure this User_Setup.h is included.

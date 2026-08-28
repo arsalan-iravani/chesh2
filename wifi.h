@@ -1,11 +1,10 @@
+// wifi.h
 #pragma once
-
-#include <ESP8266WiFi.h>
+#include <Arduino.h>
 
 class WiFiAPClass {
 public:
   void init();
   void handle();
 };
-
 extern WiFiAPClass wifiAP;

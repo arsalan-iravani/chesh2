@@ -1,228 +1,220 @@
+// eye.cpp
 #include "eye.h"
 #include "display.h"
 #include "iris.h"
 #include "animation.h"
+#include "util.h"
 #include <TFT_eSPI.h>
 #include <math.h>
-#include "util.h"
 
 EyeClass eye;
 
+// Default iris cache size (tune for memory). We'll try larger, fallback if malloc fails.
+#ifndef IRIS_CACHE_TRY
+#define IRIS_CACHE_TRY 112
+#endif
+
+static inline uint16_t make565(uint8_t r, uint8_t g, uint8_t b) {
+  return (((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
+}
+
 void EyeClass::init() {
   irisGen.init(analogRead(A0));
-  // generate a 128x128 iris cache
-  if (!irisGen.generateCache(128)) {
-    // fallback: small cache
-    irisGen.generateCache(96);
+  // attempt to generate the cache at the desired size with graceful fallback
+  if (!irisGen.generateCache(IRIS_CACHE_TRY)) {
+    Serial.println("Iris cache allocation failed at primary size; trying 96");
+    if (!irisGen.generateCache(96)) {
+      Serial.println("Iris cache fallback to 96 failed; trying 80");
+      irisGen.generateCache(80);
+    }
   }
-  irisGen.setBaseColor(80,120,140);
-  // initial draw
+  // default eye color: bluish
+  irisGen.setBaseColor(80,120,180);
+  // initial draw cycle
   update(0);
 }
 
 void EyeClass::setExpression(Expression e) {
-  currentExpression = e;
+  _expression = e;
 }
 
-void EyeClass::setGaze(float vx, float vy) {
-  gazeX = clampf(vx, -1.0f, 1.0f);
-  gazeY = clampf(vy, -1.0f, 1.0f);
+void EyeClass::setGaze(float x, float y) {
+  _gazeX = clampf(x, -1.0f, 1.0f);
+  _gazeY = clampf(y, -1.0f, 1.0f);
 }
 
 void EyeClass::setPupil(float t) {
-  pupilT = clampf(t, 0.0f, 1.0f);
+  _pupilT = clampf(t, 0.0f, 1.0f);
 }
 
-uint16_t EyeClass::blend(uint16_t bg, uint16_t fg, uint8_t alpha) {
-  // simple alpha blend 0-255
-  uint8_t r1 = (bg >> 11) & 0x1F; r1 = (r1 << 3) | (r1 >> 2);
-  uint8_t g1 = (bg >> 5) & 0x3F; g1 = (g1 << 2) | (g1 >> 4);
-  uint8_t b1 = bg & 0x1F; b1 = (b1 << 3) | (b1 >> 2);
-
-  uint8_t r2 = (fg >> 11) & 0x1F; r2 = (r2 << 3) | (r2 >> 2);
-  uint8_t g2 = (fg >> 5) & 0x3F; g2 = (g2 << 2) | (g2 >> 4);
-  uint8_t b2 = fg & 0x1F; b2 = (b2 << 3) | (b2 >> 2);
-
-  uint8_t ra = (uint8_t)((r2 * alpha + r1 * (255 - alpha)) / 255);
-  uint8_t ga = (uint8_t)((g2 * alpha + g1 * (255 - alpha)) / 255);
-  uint8_t ba = (uint8_t)((b2 * alpha + b1 * (255 - alpha)) / 255);
-
-  return ((ra & 0xF8) << 8) | ((ga & 0xFC) << 3) | (ba >> 3);
+void EyeClass::setColor(uint8_t r, uint8_t g, uint8_t b) {
+  irisGen.setBaseColor(r,g,b);
+  // regenerate cache handled by irisGen
 }
 
-void EyeClass::drawSclera(TFT_eSPI &tft) {
-  // draw a soft gradient sclera with warm-white center and subtle shading near lids
-  int rmax = eyeRadius;
+uint16_t EyeClass::color565(uint8_t r, uint8_t g, uint8_t b) {
+  return make565(r,g,b);
+}
+
+void EyeClass::drawSclera() {
+  TFT_eSPI &tft = display.tft();
+
+  int rmax = _eyeRadius;
+
+  // radial gradient by concentric circles (cheap)
   for (int r = rmax; r > 0; --r) {
     float k = 1.0f - (float)r / (float)rmax;
-    // combine warm center and cooler edges
-    uint8_t rc = (uint8_t)constrain(250 - k*18, 220, 255);
-    uint8_t gc = (uint8_t)constrain(245 - k*22, 200, 255);
-    uint8_t bc = (uint8_t)constrain(240 - k*28, 180, 255);
-    uint16_t c = tft.color565(rc, gc, bc);
-    tft.drawCircle(cx, cy, r, c);
+    uint8_t rc = (uint8_t)constrain(244 - k*20, 220, 255);
+    uint8_t gc = (uint8_t)constrain(240 - k*24, 200, 255);
+    uint8_t bc = (uint8_t)constrain(238 - k*28, 190, 255);
+    uint16_t col = color565(rc,gc,bc);
+    tft.drawCircle(_cx, _cy, r, col);
   }
+
+  // lightweight veins: 3 small faint strokes/dots
+  tft.drawLine(_cx - 28, _cy + 18, _cx - 20, _cy + 12, color565(220,60,60));
+  tft.drawLine(_cx + 36, _cy - 16, _cx + 24, _cy - 8, color565(230,90,90));
+  tft.drawPixel(_cx - 8, _cy + 32, color565(200,70,70));
 }
 
-void EyeClass::drawHighlights(TFT_eSPI &tft, int icx, int icy, int irisR) {
-  // two layered highlights: soft big one and small sharp one
-  // main soft highlight (elliptical)
+void EyeClass::drawHighlights(int icx, int icy, int irisR) {
+  TFT_eSPI &tft = display.tft();
+
+  // Soft highlight: draw multiple concentric light ellipses approximated with circles
   int hx = icx - irisR/3;
   int hy = icy - irisR/3;
-  int hw = irisR/3;
-  int hh = irisR/5;
-  // draw several translucent ellipses by blending over background
-  for (int a = 0; a < 6; ++a) {
-    int alpha = 40 - a*6; // decreasing alpha
-    if (alpha <= 0) break;
-    int w = hw - a*2;
-    int h = hh - a*1;
-    // draw filled ellipse by scanline approximation
-    for (int dy = -h; dy <= h; ++dy) {
-      int yy = hy + dy;
-      float nx = (float)dy / (float)h;
-      float span = w * sqrtf(1.0f - nx*nx);
-      int x0 = hx - (int)span;
-      int x1 = hx + (int)span;
-      for (int x = x0; x <= x1; ++x) {
-        uint16_t bg = tft.readPixel(x, yy);
-        uint16_t col = tft.color565(255,255,255);
-        uint16_t blended = blend(bg, col, alpha);
-        tft.drawPixel(x, yy, blended);
-      }
-    }
+  for (int i = 0; i < 5; ++i) {
+    int r = (irisR/6) - i;
+    if (r <= 0) break;
+    // produce a lighter color but not pure white, to simulate soft reflection
+    uint8_t v = 255 - i * 28;
+    uint8_t rr = (uint8_t)min(255, (int)v);
+    uint16_t col = color565(rr, rr, (uint8_t)min(255, rr + 8));
+    tft.fillCircle(hx, hy, r, col);
   }
-  // small specular
-  int sx = icx + irisR/4;
-  int sy = icy - irisR/4;
-  tft.fillCircle(sx, sy, max(1, irisR/16), tft.color565(255,255,255));
+
+  // sharp specular
+  tft.fillCircle(icx + irisR/4, icy - irisR/4, max(1, irisR/16), color565(255,255,255));
 }
 
-void EyeClass::drawIrisAndPupil(TFT_eSPI &tft) {
-  int irisR = (int)(eyeRadius * 0.48f);
+void EyeClass::drawIrisAndPupil() {
+  TFT_eSPI &tft = display.tft();
+  int irisR = (int)(_eyeRadius * 0.48f);
 
-  // compute gaze pixel offset
-  int maxOffset = eyeRadius - irisR - 6;
-  int ox = (int)(gazeX * maxOffset);
-  int oy = (int)(gazeY * maxOffset * 0.7f);
-  int icx = cx + ox;
-  int icy = cy + oy;
+  // gaze offset inside allowable range
+  int maxOffset = _eyeRadius - irisR - 6;
+  int ox = (int)(_gazeX * maxOffset);
+  int oy = (int)(_gazeY * maxOffset * 0.7f);
+  int icx = _cx + ox;
+  int icy = _cy + oy;
 
-  // draw iris from cache
-  const uint16_t* cache = irisGen.cache();
+  // draw cached iris if available
+  const uint16_t *cache = irisGen.cache();
   int csz = irisGen.cacheSize();
   int cr = irisGen.cacheRadius();
   if (cache && csz > 0) {
-    // blit centered
     int x0 = icx - cr;
     int y0 = icy - cr;
-    // use pushImage (assumes cache is csz x csz)
     display.pushImage(x0, y0, csz, csz, cache);
   } else {
-    // fallback sample per pixel
+    // fallback: sample per pixel (slow)
     for (int y = icy - irisR; y <= icy + irisR; ++y) {
       for (int x = icx - irisR; x <= icx + irisR; ++x) {
-        int dx = x - icx;
-        int dy = y - icy;
+        int dx = x - icx; int dy = y - icy;
         if (dx*dx + dy*dy <= irisR*irisR) {
-          uint16_t col = irisGen.sampleColorPolar(icx, icy, x, y, irisR);
-          tft.drawPixel(x, y, col);
+          uint16_t col = irisGen.sampleColor(icx, icy, x, y, irisR);
+          tft.drawPixel(x,y,col);
         }
       }
     }
   }
 
   // pupil
-  int pupilR = (int)(irisR * (0.12f + 0.45f * (1.0f - pupilT)));
-  // draw pupil with slight radial shadow to suggest depth
-  for (int r = pupilR; r >= 0; --r) {
-    uint8_t shade = (uint8_t)constrain(20 + (pupilR - r) * 2, 0, 255);
-    uint16_t c = tft.color565(0,0,0);
-    tft.fillCircle(icx, icy, r, c);
-  }
-  // pupil border
-  tft.drawCircle(icx, icy, pupilR+1, tft.color565(20,20,20));
+  int pupilR = (int)(irisR * (0.12f + 0.6f * (1.0f - _pupilT)));
+  // layered pupil fill to suggest depth
+  tft.fillCircle(icx, icy, pupilR+2, color565(6,6,6));
+  tft.fillCircle(icx, icy, pupilR, color565(0,0,0));
+  tft.drawCircle(icx, icy, pupilR+1, color565(12,12,12));
 
-  // subtle pupil shadow on iris (dark crescent)
   int sx = icx - pupilR/2;
   int sy = icy - pupilR/2;
-  for (int y = icy - irisR; y <= icy + irisR; ++y) {
-    for (int x = icx - irisR; x <= icx + irisR; ++x) {
-      int dx = x - sx;
-      int dy = y - sy;
-      int dist2 = dx*dx + dy*dy;
-      int r2 = irisR*irisR;
-      if (dist2 < r2) {
-        // apply small darkening near shadow area
-        if (dist2 < (pupilR+pupilR)*(pupilR+pupilR)) {
-          // darker
-          uint16_t bg = tft.readPixel(x,y);
-          uint16_t dark = blend(bg, tft.color565(0,0,0), 20);
-          tft.drawPixel(x,y,dark);
-        }
-      }
-    }
-  }
+  tft.fillCircle(sx, sy, pupilR + 6, color565(6,6,6));
+  tft.fillCircle(icx, icy, pupilR, color565(0,0,0));
 
   // highlights
-  drawHighlights(tft, icx, icy, irisR);
+  drawHighlights(icx, icy, irisR);
 }
 
-void EyeClass::drawEyelids(TFT_eSPI &tft) {
-  // compute eyelid curve positions using eyelidOpen
-  float open = animation.getEyelidOpenness(); // 0 closed, 1 open
-  // base vertical extents
-  int lidRise = (int)((1.0f - open) * 60.0f);
-  // upper lid: parabola y = a*(x-cx)^2 + y0
-  float a = 0.0008f * (20 + lidRise); // curvature
-  int y0 = cy - 30 + lidRise; // apex y
-  // fill upper eyelid region
-  for (int x = 0; x < 240; ++x) {
-    float dx = x - cx;
-    int y = (int)(a * dx * dx + y0);
-    if (y < 0) y = 0;
-    if (y > 239) y = 239;
-    // fill above this y
-    tft.drawFastVLine(x, 0, y, tft.color565(40,30,30));
+void EyeClass::drawEyelids() {
+  TFT_eSPI &tft = display.tft();
+  float open = animation.getEyelidOpenness();
+
+  // expression-based bias to openness
+  float bias = 0.0f;
+  switch (_expression) {
+    case EXP_HAPPY: bias = 0.08f; break;
+    case EXP_SAD: bias = -0.18f; break;
+    case EXP_ANGRY: bias = -0.22f; break;
+    case EXP_SURPRISED: bias = 0.28f; break;
+    case EXP_SLEEPY: bias = -0.36f; break;
+    case EXP_CONFUSED: bias = 0.0f; break;
+    case EXP_CRYING: bias = -0.22f; break;
+    default: bias = 0.0f;
   }
-  // lower lid: inverted parabola
-  float b = -0.0006f * (20 + lidRise);
-  int y1 = cy + 30 - (lidRise/3);
+  open = clampf(open + bias, 0.0f, 1.0f);
+
+  int lidRange = 60;
+  int lidOffset = (int)((1.0f - open) * lidRange);
+
+  // upper parabola
+  float a = 0.00085f * (20 + lidOffset);
+  int apex = _cy - 30 + lidOffset;
   for (int x = 0; x < 240; ++x) {
-    float dx = x - cx;
-    int y = (int)(b * dx * dx + y1);
-    if (y < 0) y = 0;
-    if (y > 239) y = 239;
-    // fill below this y
-    tft.drawFastVLine(x, y, 240-y, tft.color565(38,28,28));
+    float dx = x - _cx;
+    int y = (int)(a * dx * dx + apex);
+    y = constrain(y, 0, 239);
+    tft.drawFastVLine(x, 0, y, color565(34,26,26));
   }
-  // eyelid shadow bands near lid edges for depth
-  // small band at upper edge
-  for (int x = cx - 70; x <= cx + 70; ++x) {
-    float dx = x - cx;
-    int y = (int)(a * dx * dx + y0);
-    int yy = y;
-    for (int dy = 0; dy < 4; ++dy) {
-      int py = yy + dy;
-      if (py >= 0 && py < 240) {
-        uint16_t bg = tft.readPixel(x, py);
-        uint16_t col = blend(bg, tft.color565(0,0,0), 50);
-        tft.drawPixel(x, py, col);
-      }
+
+  // lower parabola
+  float b = -0.0006f * (20 + lidOffset);
+  int apex2 = _cy + 30 - (lidOffset / 3);
+  for (int x = 0; x < 240; ++x) {
+    float dx = x - _cx;
+    int y = (int)(b * dx * dx + apex2);
+    y = constrain(y, 0, 239);
+    tft.drawFastVLine(x, y, 240 - y, color565(34,26,26));
+  }
+
+  // thin eyelid shadow band
+  for (int x = _cx - 70; x <= _cx + 70; ++x) {
+    float dx = x - _cx;
+    int y = (int)(a * dx * dx + apex);
+    if (y >= 0 && y < 238) {
+      tft.fillRect(x, y, 1, 2, color565(10,10,10));
     }
   }
+}
+
+void EyeClass::drawTears() {
+  if (_expression != EXP_CRYING) return;
+  TFT_eSPI &tft = display.tft();
+  int irisR = (int)(_eyeRadius * 0.48f);
+  int ox = (int)(_gazeX * (_eyeRadius - irisR - 4));
+  int oy = (int)(_gazeY * (_eyeRadius - irisR - 4) * 0.7f);
+  int icx = _cx + ox;
+  int icy = _cy + oy;
+
+  tft.fillEllipse(icx + 10, icy + irisR/2 + 6, 4, 6, color565(200,220,255));
+  tft.fillEllipse(icx - 8, icy + irisR/2 + 10, 3, 5, color565(220,230,255));
 }
 
 void EyeClass::update(unsigned long dt) {
   TFT_eSPI &tft = display.tft();
-  // choose to clear background black to increase contrast
   tft.fillScreen(TFT_BLACK);
 
-  drawSclera(tft);
-  drawIrisAndPupil(tft);
-  drawEyelids(tft);
-}
-
-void EyeClass::setColor(uint8_t r, uint8_t g, uint8_t b) {
-  irisGen.setBaseColor(r,g,b);
+  drawSclera();
+  drawIrisAndPupil();
+  drawEyelids();
+  drawTears();
 }

@@ -1,31 +1,30 @@
+// animation.cpp
 #include "animation.h"
 #include "eye.h"
-#include <Arduino.h>
 #include "util.h"
+#include <Arduino.h>
 
 AnimationClass animation;
 
 void AnimationClass::init() {
   randomSeed(analogRead(A0) ^ micros());
-  // schedule initial gaze
-  targetGazeX = 0.0f; targetGazeY = 0.0f;
-  startGazeX = 0.0f; startGazeY = 0.0f;
+  startGazeX = targetGazeX = 0.0f;
+  startGazeY = targetGazeY = 0.0f;
   gazeStart = millis();
   gazeDuration = 800;
-
-  nextBlinkAt = millis() + 2000 + random(0,4000);
+  nextBlinkAt = millis() + 1400 + random(0, 4800);
+  eyelidOpen = 1.0f;
 }
 
 void AnimationClass::update(unsigned long dt) {
   unsigned long now = millis();
-  // Gaze: handle transitions
-  if (autoGaze) {
-    if (now - gazeStart >= gazeDuration) {
-      // pick a new target
-      startGazeX = targetGazeX;
-      startGazeY = targetGazeY;
-      targetGazeX = randf(-0.9f, 0.9f);
-      targetGazeY = randf(-0.6f, 0.6f);
+
+  // Auto gaze interpolation
+  if (_autoGaze) {
+    if ((now - gazeStart) >= gazeDuration) {
+      startGazeX = targetGazeX; startGazeY = targetGazeY;
+      targetGazeX = randf(-0.85f, 0.85f);
+      targetGazeY = randf(-0.55f, 0.55f);
       gazeStart = now;
       gazeDuration = 600 + random(0, 1600);
     }
@@ -34,44 +33,44 @@ void AnimationClass::update(unsigned long dt) {
     float et = easeInOutCubic(t);
     float gx = lerp(startGazeX, targetGazeX, et);
     float gy = lerp(startGazeY, targetGazeY, et);
-    // micro-saccades: small quick impulses
-    if (micro && now - lastMicro > 300 + random(0,800)) {
+
+    // micro-saccades impulses occasionally
+    if (_micro && (now - lastMicro) > (300 + random(0,800))) {
       lastMicro = now;
       microX = randf(-0.03f, 0.03f);
       microY = randf(-0.02f, 0.02f);
     }
-    float microDecay = 0.9f;
-    microX *= microDecay; microY *= microDecay;
+    microX *= 0.88f; microY *= 0.88f;
     eye.setGaze(gx + microX, gy + microY);
   }
 
   // blinking state machine
-  if (blinking) {
+  if (_blinking) {
     if (!blinkingNow && now >= nextBlinkAt) {
       blinkingNow = true;
       blinkStart = now;
-      blinkDuration = 180 + random(0,220); // total ms
+      blinkDuration = 120 + random(0, 260);
     }
     if (blinkingNow) {
       unsigned long elapsed = now - blinkStart;
       float phase = (float)elapsed / (float)blinkDuration;
       if (phase < 0.5f) {
-        eyelidOpen = 1.0f - easeInOutCubic(phase*2.0f);
+        eyelidOpen = 1.0f - easeInOutCubic(phase * 2.0f);
       } else if (phase < 1.0f) {
-        eyelidOpen = easeInOutCubic((phase-0.5f)*2.0f);
+        eyelidOpen = easeInOutCubic((phase - 0.5f) * 2.0f);
       } else {
         eyelidOpen = 1.0f;
         blinkingNow = false;
-        nextBlinkAt = now + 2000 + random(0,6000);
+        nextBlinkAt = now + 1800 + random(0, 5200);
       }
     }
   }
 }
 
-void AnimationClass::setAutoGaze(bool v) { autoGaze = v; }
-void AnimationClass::setBlinking(bool v) { blinking = v; }
-void AnimationClass::setMicroSaccades(bool v) { micro = v; }
-void AnimationClass::setTears(bool v) { tearsFlag = v; }
-void AnimationClass::setPupilAnim(bool v) { pupilAnim = v; }
+void AnimationClass::setAutoGaze(bool v) { _autoGaze = v; }
+void AnimationClass::setBlinking(bool v) { _blinking = v; }
+void AnimationClass::setMicroSaccades(bool v) { _micro = v; }
+void AnimationClass::setTears(bool v) { _tears = v; }
+void AnimationClass::setPupilAnim(bool v) { _pupilAnim = v; }
 
 float AnimationClass::getEyelidOpenness() { return eyelidOpen; }
