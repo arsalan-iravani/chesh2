@@ -20,13 +20,23 @@ private:
   bool tearsFlag = false;
   bool pupilAnim = true;
 
+  // gaze
   float gazeX = 0.0f, gazeY = 0.0f;
+  float startGazeX = 0.0f, startGazeY = 0.0f;
   float targetGazeX = 0.0f, targetGazeY = 0.0f;
+  unsigned long gazeStart = 0;
+  unsigned long gazeDuration = 1000;
+
+  // eyelids/blink
   float eyelidOpen = 1.0f;
-  unsigned long blinkTimer = 0;
-  unsigned long nextBlinkIn = 3000;
   bool blinkingNow = false;
-  unsigned long blinkPhase = 0;
+  unsigned long blinkStart = 0;
+  unsigned long blinkDuration = 300; // ms total
+  unsigned long nextBlinkAt = 0;
+
+  // micro-saccades
+  unsigned long lastMicro = 0;
+  float microX = 0.0f, microY = 0.0f;
 };
 
 extern AnimationClass animation;

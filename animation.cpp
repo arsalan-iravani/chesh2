@@ -4,51 +4,67 @@
 
 AnimationClass animation;
 
+static float randf(float a, float b) { return a + (float)random(1000)/1000.0f * (b-a); }
+
 void AnimationClass::init() {
-  // schedule first blink
-  nextBlinkIn = 2000 + (random(0,4000));
-  blinkTimer = 0;
+  randomSeed(analogRead(A0) ^ micros());
+  // schedule initial gaze
+  targetGazeX = 0.0f; targetGazeY = 0.0f;
+  startGazeX = 0.0f; startGazeY = 0.0f;
+  gazeStart = millis();
+  gazeDuration = 800;
+
+  nextBlinkAt = millis() + 2000 + random(0,4000);
 }
 
 void AnimationClass::update(unsigned long dt) {
-  // gaze logic
+  unsigned long now = millis();
+  // Gaze: handle transitions
   if (autoGaze) {
-    static unsigned long gazeChange = 0;
-    gazeChange += dt;
-    if (gazeChange > 1200) {
-      gazeChange = 0;
-      targetGazeX = (random(-100,101))/100.0f;
-      targetGazeY = (random(-60,61))/100.0f;
+    if (now - gazeStart >= gazeDuration) {
+      // pick a new target
+      startGazeX = targetGazeX;
+      startGazeY = targetGazeY;
+      targetGazeX = randf(-0.9f, 0.9f);
+      targetGazeY = randf(-0.6f, 0.6f);
+      gazeStart = now;
+      gazeDuration = 600 + random(0, 1600);
     }
+    float t = (float)(now - gazeStart) / (float)gazeDuration;
+    t = clampf(t, 0.0f, 1.0f);
+    float et = easeInOutCubic(t);
+    float gx = lerp(startGazeX, targetGazeX, et);
+    float gy = lerp(startGazeY, targetGazeY, et);
+    // micro-saccades: small quick impulses
+    if (micro && now - lastMicro > 300 + random(0,800)) {
+      lastMicro = now;
+      microX = randf(-0.03f, 0.03f);
+      microY = randf(-0.02f, 0.02f);
+    }
+    float microDecay = 0.9f;
+    microX *= microDecay; microY *= microDecay;
+    eye.setGaze(gx + microX, gy + microY);
   }
-  // interpolate
-  float speed = 0.01f * dt; // tuned
-  gazeX += (targetGazeX - gazeX) * speed;
-  gazeY += (targetGazeY - gazeY) * speed;
-  eye.setGaze(gazeX, gazeY);
 
-  // blinking
-  blinkTimer += dt;
-  if (!blinkingNow && blinkTimer > nextBlinkIn && blinking) {
-    blinkingNow = true;
-    blinkPhase = 0;
-  }
-  if (blinkingNow) {
-    // blink phases: closing (0-150), closed (150-220), opening (220-370)
-    blinkPhase += dt;
-    if (blinkPhase < 150) {
-      float t = blinkPhase / 150.0f;
-      eyelidOpen = 1.0f - t;
-    } else if (blinkPhase < 220) {
-      eyelidOpen = 0.0f;
-    } else if (blinkPhase < 370) {
-      float t = (blinkPhase - 220) / 150.0f;
-      eyelidOpen = t;
-    } else {
-      blinkingNow = false;
-      blinkTimer = 0;
-      nextBlinkIn = 2000 + random(0,5000);
-      eyelidOpen = 1.0f;
+  // blinking state machine
+  if (blinking) {
+    if (!blinkingNow && now >= nextBlinkAt) {
+      blinkingNow = true;
+      blinkStart = now;
+      blinkDuration = 180 + random(0,220); // total ms
+    }
+    if (blinkingNow) {
+      unsigned long elapsed = now - blinkStart;
+      float phase = (float)elapsed / (float)blinkDuration;
+      if (phase < 0.5f) {
+        eyelidOpen = 1.0f - easeInOutCubic(phase*2.0f);
+      } else if (phase < 1.0f) {
+        eyelidOpen = easeInOutCubic((phase-0.5f)*2.0f);
+      } else {
+        eyelidOpen = 1.0f;
+        blinkingNow = false;
+        nextBlinkAt = now + 2000 + random(0,6000);
+      }
     }
   }
 }

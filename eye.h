@@ -15,11 +15,15 @@ private:
   int cx = 120, cy = 120;
   int eyeRadius = 110;
   float gazeX = 0.0f, gazeY = 0.0f;
-  float pupilT = 0.3f;
+  float pupilT = 0.35f;
+  float eyelidOpen = 1.0f; // 0 closed, 1 open
+  Expression currentExpression = EXP_NORMAL;
+
   void drawSclera(TFT_eSPI &tft);
   void drawIrisAndPupil(TFT_eSPI &tft);
   void drawEyelids(TFT_eSPI &tft);
-  uint16_t rgbTo565(uint8_t r, uint8_t g, uint8_t b);
+  void drawHighlights(TFT_eSPI &tft, int icx, int icy, int irisR);
+  uint16_t blend(uint16_t bg, uint16_t fg, uint8_t alpha); // alpha 0-255
 };
 
 extern EyeClass eye;

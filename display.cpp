@@ -3,7 +3,6 @@
 DisplayClass::DisplayClass() : tft_instance(), brightness(255) {}
 
 void DisplayClass::init() {
-  // TFT_eSPI requires a proper User_Setup.h in the library configured for GC9A01 and the pins.
   tft_instance.init();
   tft_instance.setRotation(0);
   tft_instance.fillScreen(TFT_BLACK);
@@ -17,7 +16,11 @@ TFT_eSPI &DisplayClass::tft() { return tft_instance; }
 
 void DisplayClass::setBrightness(uint8_t b) {
   brightness = b;
-  // If backlight control pin exists, implement PWM here.
+}
+
+void DisplayClass::pushImage(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *data) {
+  // Use TFT_eSPI's pushImage if available
+  tft_instance.pushImage(x, y, w, h, data);
 }
 
 // Define the global instance

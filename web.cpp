@@ -17,6 +17,8 @@ public:
     server.onNotFound(std::bind(&WebServerImpl::handleNotFound, this));
     server.on("/setColor", std::bind(&WebServerImpl::handleSetColor, this));
     server.on("/setGaze", std::bind(&WebServerImpl::handleSetGaze, this));
+    server.on("/setExpression", std::bind(&WebServerImpl::handleSetExpression, this));
+    server.on("/toggle", std::bind(&WebServerImpl::handleToggle, this));
     server.begin();
     Serial.println("Web server started");
   }
@@ -48,6 +50,26 @@ private:
     } else {
       server.send(400, "application/json", "{\"ok\":false}\n");
     }
+  }
+  void handleSetExpression() {
+    if (server.hasArg("e")) {
+      int e = server.arg("e").toInt();
+      if (e >= 0 && e <= 7) {
+        eye.setExpression((Expression)e);
+        server.send(200, "application/json", "{\"ok\":true}\n");
+      } else {
+        server.send(400, "application/json", "{\"ok\":false}\n");
+      }
+    } else {
+      server.send(400, "application/json", "{\"ok\":false}\n");
+    }
+  }
+  void handleToggle() {
+    // /toggle?auto=1&blink=0&micro=1
+    if (server.hasArg("auto")) animation.setAutoGaze(server.arg("auto").toInt()!=0);
+    if (server.hasArg("blink")) animation.setBlinking(server.arg("blink").toInt()!=0);
+    if (server.hasArg("micro")) animation.setMicroSaccades(server.arg("micro").toInt()!=0);
+    server.send(200, "application/json", "{\"ok\":true}\n");
   }
 };
 

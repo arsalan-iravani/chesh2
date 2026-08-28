@@ -15,5 +15,4 @@ void WiFiAPClass::init() {
 }
 
 void WiFiAPClass::handle() {
-  // no-op for now
 }
