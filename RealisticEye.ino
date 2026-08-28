@@ -17,8 +17,11 @@ void setup() {
   Serial.println();
   Serial.println("RealisticEye starting...");
 
-  // Initialize hardware and services
-  display.init();   // initializes TFT
+  // Initialize display and run simple hardware test sequence to verify wiring
+  display.init();
+  display.testSequence(); // blocks for a few seconds while cycling colors and text
+
+  // Initialize remaining modules only after display test
   eye.init();       // generates iris cache, draws initial frame
   animation.init(); // initialize animation state
   wifiAP.init();    // start soft AP
