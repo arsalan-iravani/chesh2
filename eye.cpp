@@ -4,13 +4,9 @@
 #include "animation.h"
 #include <TFT_eSPI.h>
 #include <math.h>
+#include "util.h"
 
 EyeClass eye;
-
-// easing helpers
-static float clampf(float v, float a, float b) { return v < a ? a : (v > b ? b : v); }
-static float lerp(float a, float b, float t) { return a + (b - a) * t; }
-static float easeInOutCubic(float t) { return t < 0.5f ? 4.0f*t*t*t : 1.0f - powf(-2.0f*t + 2.0f, 3.0f)/2.0f; }
 
 void EyeClass::init() {
   irisGen.init(analogRead(A0));
