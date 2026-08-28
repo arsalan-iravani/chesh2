@@ -3,9 +3,16 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 
-namespace Display {
+class DisplayClass {
+public:
+  DisplayClass();
   void init();
   void loop();
   TFT_eSPI &tft();
   void setBrightness(uint8_t b);
-}
+private:
+  TFT_eSPI tft_instance;
+  uint8_t brightness;
+};
+
+extern DisplayClass display;

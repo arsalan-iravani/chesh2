@@ -1,8 +1,9 @@
 #include "wifi.h"
+#include <Arduino.h>
 
-namespace WiFiAP {
+WiFiAPClass wifiAP;
 
-void init() {
+void WiFiAPClass::init() {
   const char *ssid = "ParaxEye";
   const char *password = "12345678";
   Serial.println("Starting WiFi AP...");
@@ -13,8 +14,6 @@ void init() {
   Serial.println(WiFi.softAPIP());
 }
 
-void handle() {
-  // nothing for now
-}
-
+void WiFiAPClass::handle() {
+  // no-op for now
 }

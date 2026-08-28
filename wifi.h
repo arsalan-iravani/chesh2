@@ -2,7 +2,10 @@
 
 #include <ESP8266WiFi.h>
 
-namespace WiFiAP {
+class WiFiAPClass {
+public:
   void init();
   void handle();
-}
+};
+
+extern WiFiAPClass wifiAP;

@@ -1,7 +1,6 @@
 /*
   chesh2.ino
   Entry point for CHESH2 - Realistic Code-Generated Digital Eye
-  Minimal, modular structure. See README.md for wiring and library config.
 */
 
 #include <Arduino.h>
@@ -18,11 +17,12 @@ void setup() {
   delay(100);
   Serial.println("CHESH2 starting...");
 
-  Display.init();
-  Eye.init();
-  Animation.init();
-  WiFiAP.init();
-  WebServerSetup.init();
+  // Initialize modules (global instances)
+  display.init();
+  eye.init();
+  animation.init();
+  wifiAP.init();
+  webServer.init();
 
   lastMillis = millis();
 }
@@ -32,10 +32,12 @@ void loop() {
   unsigned long dt = now - lastMillis;
   lastMillis = now;
 
-  WiFiAP.handle();
-  WebServerSetup.handle();
+  // Handle services
+  wifiAP.handle();
+  webServer.handle();
 
-  Animation.update(dt);
-  Eye.update(dt);
-  Display.loop();
+  // Update animations and rendering
+  animation.update(dt);
+  eye.update(dt);
+  display.loop();
 }

@@ -1,35 +1,18 @@
 #include "animation.h"
 #include "eye.h"
-#include "expression.h"
 #include <Arduino.h>
 
-static bool autoGaze = true;
-static bool blinking = true;
-static bool micro = true;
-static bool tears = false;
-static bool pupilAnim = true;
+AnimationClass animation;
 
-// simple state
-static float gazeX = 0.0f, gazeY = 0.0f;
-static float targetGazeX = 0.0f, targetGazeY = 0.0f;
-static float eyelidOpen = 1.0f;
-static unsigned long blinkTimer = 0;
-static unsigned long nextBlinkIn = 3000;
-static bool blinkingNow = false;
-static unsigned long blinkPhase = 0;
-
-namespace Animation {
-
-void init() {
+void AnimationClass::init() {
   // schedule first blink
   nextBlinkIn = 2000 + (random(0,4000));
   blinkTimer = 0;
 }
 
-void update(unsigned long dt) {
+void AnimationClass::update(unsigned long dt) {
   // gaze logic
   if (autoGaze) {
-    // slowly move target occasionally
     static unsigned long gazeChange = 0;
     gazeChange += dt;
     if (gazeChange > 1200) {
@@ -42,7 +25,7 @@ void update(unsigned long dt) {
   float speed = 0.01f * dt; // tuned
   gazeX += (targetGazeX - gazeX) * speed;
   gazeY += (targetGazeY - gazeY) * speed;
-  Eye::setGaze(gazeX, gazeY);
+  eye.setGaze(gazeX, gazeY);
 
   // blinking
   blinkTimer += dt;
@@ -68,16 +51,12 @@ void update(unsigned long dt) {
       eyelidOpen = 1.0f;
     }
   }
-
-  // set eyelid parameter somewhere accessible
 }
 
-void setAutoGaze(bool v) { autoGaze = v; }
-void setBlinking(bool v) { blinking = v; }
-void setMicroSaccades(bool v) { micro = v; }
-void setTears(bool v) { tears = v; }
-void setPupilAnim(bool v) { pupilAnim = v; }
+void AnimationClass::setAutoGaze(bool v) { autoGaze = v; }
+void AnimationClass::setBlinking(bool v) { blinking = v; }
+void AnimationClass::setMicroSaccades(bool v) { micro = v; }
+void AnimationClass::setTears(bool v) { tearsFlag = v; }
+void AnimationClass::setPupilAnim(bool v) { pupilAnim = v; }
 
-float getEyelidOpenness() { return eyelidOpen; }
-
-}
+float AnimationClass::getEyelidOpenness() { return eyelidOpen; }

@@ -75,7 +75,7 @@ function setGaze(x,y){
   fetch(`/setGaze?x=${x}&y=${y}`);
 }
 function toggleAuto(){
-  // Not implemented server-side: UI only
+  // Not implemented server-side: UI-only toggle placeholder
 }
 function toggleBlink(){
 }

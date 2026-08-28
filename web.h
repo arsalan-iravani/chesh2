@@ -1,6 +1,9 @@
 #pragma once
 
-namespace WebServerSetup {
+class WebServerClass {
+public:
   void init();
   void handle();
-}
+};
+
+extern WebServerClass webServer;

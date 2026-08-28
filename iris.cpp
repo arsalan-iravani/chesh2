@@ -1,32 +1,31 @@
 #include "iris.h"
-#include "display.h"
 #include <math.h>
+#include <Arduino.h>
 
-static uint8_t baseR = 80, baseG = 120, baseB = 140;
-static uint32_t irisSeed = 12345;
-
-// Fast integer sin/cos lookup? We'll use floating math carefully; ESP8266 has FPU.
-
-static inline uint16_t rgbTo565(uint8_t r, uint8_t g, uint8_t b) {
+static inline uint16_t rgbTo565_local(uint8_t r, uint8_t g, uint8_t b) {
   return (((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
 }
 
-namespace IrisGen {
-
-void init(uint32_t seed) {
+void IrisClass::init(uint32_t seed) {
   irisSeed = seed ? seed : 987654321;
 }
 
-void setBaseColor(uint8_t r, uint8_t g, uint8_t b) {
+void IrisClass::setBaseColor(uint8_t r, uint8_t g, uint8_t b) {
   baseR = r; baseG = g; baseB = b;
 }
 
-// generate a color for a point (x,y) relative to center (cx,cy) within given radius
-uint16_t sampleColorPolar(int cx, int cy, int x, int y, int radius) {
+float IrisClass::smoothstep(float a, float b, float x) {
+  if (x <= a) return 0.0f;
+  if (x >= b) return 1.0f;
+  x = (x - a) / (b - a);
+  return x * x * (3.0f - 2.0f * x);
+}
+
+uint16_t IrisClass::sampleColorPolar(int cx, int cy, int x, int y, int radius) {
   int dx = x - cx;
   int dy = y - cy;
   float r = sqrtf((float)dx*dx + (float)dy*dy);
-  if (r > radius) return rgbTo565(200,200,200); // outside iris; light gray placeholder
+  if (r > radius) return rgbTo565_local(200,200,200); // outside iris; light gray placeholder
 
   float rn = r / (float)radius; // 0..1
   float theta = atan2f((float)dy, (float)dx);
@@ -76,15 +75,8 @@ uint16_t sampleColorPolar(int cx, int cy, int x, int y, int radius) {
     }
   }
 
-  return rgbTo565(rcol, gcol, bcol);
+  return rgbTo565_local(rcol, gcol, bcol);
 }
 
-// helper smoothstep
-float smoothstep(float a, float b, float x) {
-  if (x <= a) return 0.0f;
-  if (x >= b) return 1.0f;
-  x = (x - a) / (b - a);
-  return x * x * (3.0f - 2.0f * x);
-}
-
-}
+// Define the global instance
+IrisClass irisGen;
