@@ -24,5 +24,32 @@ void DisplayClass::pushImage(int16_t x, int16_t y, int16_t w, int16_t h, const u
   _tft.pushImage(x, y, w, h, (uint16_t*)data);
 }
 
+void DisplayClass::testSequence() {
+  // Simple blocking test to validate wiring and initialization
+  // Cycle RED, GREEN, BLUE, then BLACK with a white circle and text
+  _tft.setRotation(0);
+  _tft.fillScreen(TFT_RED);
+  delay(1000);
+  _tft.fillScreen(TFT_GREEN);
+  delay(1000);
+  _tft.fillScreen(TFT_BLUE);
+  delay(1000);
+  _tft.fillScreen(TFT_BLACK);
+
+  // Draw a large white circle in the center
+  int cx = 120, cy = 120;
+  _tft.fillCircle(cx, cy, 70, TFT_WHITE);
+
+  // Draw the label
+  _tft.setTextColor(TFT_BLACK, TFT_WHITE);
+  _tft.setTextSize(2);
+  // drawString is left aligned; center roughly by choosing x=40
+  _tft.drawString("GC9A01 OK", 40, 110);
+
+  delay(2000);
+  // Clear to black and continue
+  _tft.fillScreen(TFT_BLACK);
+}
+
 // define global instance
 DisplayClass display;
