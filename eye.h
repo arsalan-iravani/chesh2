@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include "expression.h"
+#include <TFT_eSPI.h>
 
 class EyeClass {
 public:

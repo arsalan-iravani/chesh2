@@ -5,6 +5,7 @@
 #include <ESP8266WebServer.h>
 #include "webpage.h"
 #include <Arduino.h>
+#include <functional>
 
 WebServerClass webServer;
 
