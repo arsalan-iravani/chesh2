@@ -1,10 +1,9 @@
 #include "animation.h"
 #include "eye.h"
 #include <Arduino.h>
+#include "util.h"
 
 AnimationClass animation;
-
-static float randf(float a, float b) { return a + (float)random(1000)/1000.0f * (b-a); }
 
 void AnimationClass::init() {
   randomSeed(analogRead(A0) ^ micros());
